@@ -3,18 +3,15 @@ import { Bot } from "./bot/bot.js";
 import express from 'express';
 const app = express();
 const port = 3000;
-
 // Mineflayer bot setup
 let bot = null;
 let reconnectTimeout = null;
 let isBanned = false;
-
 function createBot() {
   if (isBanned) {
     console.log('Bot is banned, halting reconnect attempts until manually resolved.');
     return;
   }
-
   // Clear existing bot instance and timeout
   if (bot) {
     bot.quit();
@@ -24,16 +21,13 @@ function createBot() {
     clearTimeout(reconnectTimeout);
     reconnectTimeout = null;
   }
-
   bot = mineflayer.createBot({
     host: "AojihaAdase.aternos.me",
     username: "aperbot",
     version: "1.8.9",
   });
-
   // Start the custom Bot logic
   new Bot(bot).start();
-
   // Log chat messages and detect bans
   bot.on("message", (msg) => {
     const message = msg.toString();
@@ -46,8 +40,7 @@ function createBot() {
       console.log('Please unban "aperbot" via Aternos dashboard or /pardon command.');
     }
   });
-  
-
+ 
   // Handle kick events
   bot.on('kicked', (reason) => {
     console.log(`Kicked from server: ${reason}`);
@@ -63,7 +56,6 @@ function createBot() {
     }
     if (!isBanned) attemptReconnect();
   });
-
   // Handle errors (including ECONNRESET)
   bot.on('error', (err) => {
     console.log(`Bot error: ${err}`);
@@ -72,13 +64,11 @@ function createBot() {
     }
     if (!isBanned) attemptReconnect();
   });
-
   // Handle bot end (disconnection)
   bot.on('end', () => {
     console.log('Bot disconnected, attempting to reconnect...');
     if (!isBanned) attemptReconnect();
   });
-
   // Handle successful login
   bot.on('login', () => {
     console.log('Bot successfully logged in!');
@@ -86,35 +76,46 @@ function createBot() {
     currentReconnectDelay = initialReconnectDelay; // Reset delay
     isBanned = false; // Clear ban flag
   });
-
-  // Anti-idle actions every 20 seconds
-  setInterval(() => {
+  // Anti-idle loop: wait 2 min, go forward (200ms), wait 2 min, go back (200ms), repeat
+  function startAntiIdleLoop() {
     if (bot && bot.isConnected && !isBanned) {
-      // Random jump
-      bot.setControlState('jump', true);
-      setTimeout(() => bot.setControlState('jump', false), 100);
-      // Random movement (forward or backward)
-      const move = Math.random() > 0.5 ? 'forward' : 'back';
-      bot.setControlState(move, true);
-      setTimeout(() => bot.setControlState(move, false), 200);
-      // Random look direction
-      bot.look(Math.random() * 360, Math.random() * 180 - 90);
-      // Occasional chat message (avoid spamming)
-      if (Math.random() < 0.2) { // 20% chance
-        bot.chat('Bot active'); // Replace with server-appropriate message
-      }
+      // Wait 2 minutes (120000 ms), then move forward
+      setTimeout(() => {
+        if (bot && bot.isConnected && !isBanned) {
+          bot.setControlState('forward', true);
+          setTimeout(() => {
+            if (bot) bot.setControlState('forward', false);
+          }, 200);
+          // After forward, wait another 2 minutes, then move back
+          setTimeout(() => {
+            if (bot && bot.isConnected && !isBanned) {
+              bot.setControlState('back', true);
+              setTimeout(() => {
+                if (bot) bot.setControlState('back', false);
+              }, 200);
+            }
+            // Restart the loop after back movement
+            startAntiIdleLoop();
+          }, 120000);
+        } else {
+          // If conditions not met, restart loop to check again
+          startAntiIdleLoop();
+        }
+      }, 120000);
+    } else {
+      // If not connected or banned, check again after a short delay
+      setTimeout(startAntiIdleLoop, 10000);
     }
-  }, 20000); // 20 seconds
-
+  }
+  // Start the anti-idle loop
+  startAntiIdleLoop();
   return bot;
 }
-
 // Reconnection logic
 let reconnectAttempts = 0;
 const maxReconnectAttempts = 10;
 const initialReconnectDelay = 60000; // 60 seconds
 let currentReconnectDelay = initialReconnectDelay;
-
 function attemptReconnect() {
   if (isBanned) {
     console.log('Reconnect skipped due to ban. Resolve ban manually.');
@@ -142,15 +143,12 @@ function attemptReconnect() {
     }, 900000); // Wait 15 minutes
   }
 }
-
 // Initialize the bot
 createBot();
-
 // Express server setup
 app.get('/', (req, res) => {
   res.sendStatus(200);
 });
-
 app.listen(port, () => {
   console.log(`Sunucu ${port} numaralı bağlantı noktasında yürütülüyor.`);
 });
