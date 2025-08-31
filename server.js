@@ -7,6 +7,8 @@ const port = 3000;
 let bot = null;
 let reconnectTimeout = null;
 let isBanned = false;
+let antiIdleInterval = null; // To store the interval ID for clearing
+
 function createBot() {
   if (isBanned) {
     console.log('Bot is banned, halting reconnect attempts until manually resolved.');
@@ -44,8 +46,8 @@ function createBot() {
   // Handle kick events
   bot.on('kicked', (reason) => {
     console.log(`Kicked from server: ${reason}`);
-    if (reason.includes("banned") || reason.includes("You have been idle")) {
-      console.log('Ban detected for idling or ToS violation.');
+    if (reason.includes("banned")) { // Removed idle check here to avoid treating kicks as bans
+      console.log('Ban detected for ToS violation.');
       isBanned = true;
       console.log('Please unban "aperbot" via Aternos dashboard or /pardon command.');
     } else if (reason.includes("Connection throttled")) {
@@ -53,6 +55,8 @@ function createBot() {
       currentReconnectDelay += 10000; // Add 10 seconds to avoid throttling
     } else if (reason.includes("duplicate_login")) {
       console.log('Duplicate login detected, ensuring session cleanup...');
+    } else if (reason.includes("You have been idle")) {
+      console.log('Idle kick detected, will attempt to reconnect normally.');
     }
     if (!isBanned) attemptReconnect();
   });
@@ -67,6 +71,10 @@ function createBot() {
   // Handle bot end (disconnection)
   bot.on('end', () => {
     console.log('Bot disconnected, attempting to reconnect...');
+    if (antiIdleInterval) {
+      clearInterval(antiIdleInterval);
+      antiIdleInterval = null;
+    }
     if (!isBanned) attemptReconnect();
   });
   // Handle successful login
@@ -76,39 +84,27 @@ function createBot() {
     currentReconnectDelay = initialReconnectDelay; // Reset delay
     isBanned = false; // Clear ban flag
   });
-  // Anti-idle loop: wait 2 min, go forward (200ms), wait 2 min, go back (200ms), repeat
-  function startAntiIdleLoop() {
-    if (bot && bot.isConnected && !isBanned) {
-      // Wait 2 minutes (120000 ms), then move forward
-      setTimeout(() => {
-        if (bot && bot.isConnected && !isBanned) {
-          bot.setControlState('forward', true);
-          setTimeout(() => {
-            if (bot) bot.setControlState('forward', false);
-          }, 200);
-          // After forward, wait another 2 minutes, then move back
-          setTimeout(() => {
-            if (bot && bot.isConnected && !isBanned) {
-              bot.setControlState('back', true);
-              setTimeout(() => {
-                if (bot) bot.setControlState('back', false);
-              }, 200);
-            }
-            // Restart the loop after back movement
-            startAntiIdleLoop();
-          }, 120000);
-        } else {
-          // If conditions not met, restart loop to check again
-          startAntiIdleLoop();
+  // Start anti-idle after spawning
+  bot.once('spawn', () => {
+    console.log('Bot spawned, starting anti-idle actions.');
+    antiIdleInterval = setInterval(() => {
+      if (bot && !isBanned) { // Removed invalid isConnected check
+        // Random jump
+        bot.setControlState('jump', true);
+        setTimeout(() => bot.setControlState('jump', false), 100);
+        // Random movement (forward or backward)
+        const move = Math.random() > 0.5 ? 'forward' : 'back';
+        bot.setControlState(move, true);
+        setTimeout(() => bot.setControlState(move, false), 200);
+        // Random look direction
+        bot.look(Math.random() * 360, Math.random() * 180 - 90);
+        // Occasional chat message (avoid spamming)
+        if (Math.random() < 0.2) { // 20% chance
+          bot.chat('Bot active'); // Replace with server-appropriate message
         }
-      }, 120000);
-    } else {
-      // If not connected or banned, check again after a short delay
-      setTimeout(startAntiIdleLoop, 10000);
-    }
-  }
-  // Start the anti-idle loop
-  startAntiIdleLoop();
+      }
+    }, 20000); // 20 seconds
+  });
   return bot;
 }
 // Reconnection logic
