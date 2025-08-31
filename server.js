@@ -26,7 +26,7 @@ function createBot() {
   }
 
   bot = mineflayer.createBot({
-    host: "isimcokonemlidegil.play.hosting",
+    host: "AojihaAdase.aternos.me",
     username: "aperbot",
     version: "1.8.9",
   });
