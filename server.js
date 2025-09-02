@@ -100,7 +100,6 @@ function createBot() {
         bot.look(Math.random() * 360, Math.random() * 180 - 90);
         // Occasional chat message (avoid spamming)
         if (Math.random() < 0.2) { // 20% chance
-          bot.chat('Bot active'); // Replace with server-appropriate message
         }
       }
     }, 20000); // 20 seconds
