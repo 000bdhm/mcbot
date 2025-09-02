@@ -24,7 +24,7 @@ function createBot() {
     reconnectTimeout = null;
   }
   bot = mineflayer.createBot({
-    host: "AojihaAdase.aternos.me",
+    host: "asdjaksdja.play.hosting",
     username: "aperbot",
     version: "1.8.9",
   });
